@@ -8,7 +8,7 @@ import {EventTypes} from '../_models/event-types';
 import {ApiService} from './api.service';
 import moment from 'moment';
 import {Deployment} from '../_models/deployment';
-import {Sequence} from '../_models/sequence';
+import { Sequence, SequenceState } from '../_models/sequence';
 import {UniformRegistration} from '../_models/uniform-registration';
 import {UniformRegistrationLog} from '../_models/uniform-registration-log';
 import {Secret} from '../_models/secret';
@@ -555,6 +555,14 @@ export class DataService {
         if (sequence) {
           this.loadTraces(sequence);
         }
+      });
+  }
+
+  public sendSequenceControl(sequence: Sequence, state: string): void {
+    sequence.state = SequenceState.UNKNOWN;
+    this.apiService.sendSequenceControl(sequence.project, sequence.shkeptncontext, state)
+      .subscribe(() => {
+        this.updateSequence(sequence.project, sequence.shkeptncontext);
       });
   }
 

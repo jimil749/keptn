@@ -6,17 +6,23 @@ import {
   OnInit,
   ViewEncapsulation
 } from '@angular/core';
-import {Location} from '@angular/common';
-import {ActivatedRoute, Params, Router} from '@angular/router';
-import { DtQuickFilterChangeEvent, DtQuickFilterDefaultDataSource, DtQuickFilterDefaultDataSourceConfig } from '@dynatrace/barista-components/quick-filter';
-import {isObject} from '@dynatrace/barista-components/core';
-import {combineLatest, Observable, Subject, Subscription, timer} from 'rxjs';
+import { Location } from '@angular/common';
+import { ActivatedRoute, Params, Router } from '@angular/router';
+import {
+  DtQuickFilterChangeEvent,
+  DtQuickFilterDefaultDataSource,
+  DtQuickFilterDefaultDataSourceConfig
+} from '@dynatrace/barista-components/quick-filter';
+import { isObject } from '@dynatrace/barista-components/core';
+import { combineLatest, Observable, Subject, Subscription, timer } from 'rxjs';
 import { filter, map, startWith, switchMap, takeUntil, takeWhile } from 'rxjs/operators';
 import moment from 'moment';
-import {Project} from '../../_models/project';
-import {DataService} from '../../_services/data.service';
-import {DateUtil} from '../../_utils/date.utils';
-import {Sequence} from '../../_models/sequence';
+import { Project } from '../../_models/project';
+import { DataService } from '../../_services/data.service';
+import { DateUtil } from '../../_utils/date.utils';
+import { Sequence, SequenceStateControl } from '../../_models/sequence';
+import { KtbConfirmationDialogComponent } from '../../_components/_dialogs/ktb-confirmation-dialog/ktb-confirmation-dialog.component';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 
 @Component({
   selector: 'ktb-sequence-view',
@@ -46,16 +52,15 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
       }, {
         name: 'Sequence',
         showInSidebar: true,
-        autocomplete: [
-        ],
+        autocomplete: [],
       }, {
         name: 'Status',
         showInSidebar: true,
         autocomplete: [
-          { name: 'Active', value: 'started' },
-          { name: 'Failed', value: 'failed' },
-          { name: 'Succeeded', value: 'succeeded' },
-          { name: 'Waiting', value: 'waiting' }
+          {name: 'Active', value: 'started'},
+          {name: 'Failed', value: 'failed'},
+          {name: 'Succeeded', value: 'succeeded'},
+          {name: 'Waiting', value: 'waiting'}
         ],
       },
     ],
@@ -64,7 +69,7 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
     // Method to decide if a node should be displayed in the quick filter
     showInSidebar: (node) => isObject(node) && node.showInSidebar,
   };
-  private sequenceFilters: {[key: string]: string[]} = {};
+  private sequenceFilters: { [key: string]: string[] } = {};
   private project?: Project;
   private unfinishedSequences: Sequence[] = [];
   private _tracesTimerInterval = 10_000;
@@ -83,8 +88,10 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
   // tslint:disable-next-line:no-any
   public _seqFilters: any[] = [];
 
+  public confirmationDialogRef?: MatDialogRef<KtbConfirmationDialogComponent>;
+
   constructor(private _changeDetectorRef: ChangeDetectorRef, private dataService: DataService, private route: ActivatedRoute,
-              public dateUtil: DateUtil, private router: Router, private location: Location) {
+              public dateUtil: DateUtil, private router: Router, private location: Location, public dialog: MatDialog) {
     const projectName$ = this.route.params
       .pipe(
         map(params => params.projectName)
@@ -139,13 +146,13 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
             this.dataService.updateSequence(this.project.projectName, sequence.shkeptncontext);
           }
         }
-    });
+      });
 
     // init; set parameters
     combineLatest([this.route.params, this.sequences$])
       .pipe(
         takeUntil(this.unsubscribe$),
-        takeWhile( ([params]) => !this.currentSequence && params.shkeptncontext)
+        takeWhile(([params]) => !this.currentSequence && params.shkeptncontext)
       )
       .subscribe(([params, sequences]: [Params, Sequence[]]) => {
         if (params.shkeptncontext) {
@@ -158,7 +165,7 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
             this.dataService.loadUntilRoot(this.project, params.shkeptncontext);
           }
         }
-    });
+      });
 
     this.sequences$.subscribe(sequences => {
       this.updateFilterSequence(sequences);
@@ -171,12 +178,12 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
   selectSequence(event: {sequence: Sequence, stage?: string, eventId?: string}): void {
     if (event.eventId) {
       const routeUrl = this.router.createUrlTree(['/project', event.sequence.project, 'sequence',
-                                                          event.sequence.shkeptncontext, 'event', event.eventId]);
+        event.sequence.shkeptncontext, 'event', event.eventId]);
       this.location.go(routeUrl.toString());
     } else {
       const stage = event.stage || event.sequence.getStages().pop();
       const routeUrl = this.router.createUrlTree(['/project', event.sequence.project, 'sequence', event.sequence.shkeptncontext,
-                                                            ...(stage ? ['stage', stage] : [])]);
+        ...(stage ? ['stage', stage] : [])]);
       this.location.go(routeUrl.toString());
     }
 
@@ -200,7 +207,7 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
   }
 
   // tslint:disable-next-line:no-any
-  filtersChanged(event: DtQuickFilterChangeEvent<any> | {filters: []}) {
+  filtersChanged(event: DtQuickFilterChangeEvent<any> | { filters: [] }) {
     this._seqFilters = event.filters;
     this.sequenceFilters = this._seqFilters.reduce((filters, currentFilter) => {
       if (!filters[currentFilter[0].name]) {
@@ -224,9 +231,12 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
   }
 
   updateFilterDataSource(project: Project) {
-    let filterItem  = this.filterFieldData.autocomplete.find(f => f.name === 'Service');
+    let filterItem = this.filterFieldData.autocomplete.find(f => f.name === 'Service');
     if (filterItem) {
-      filterItem.autocomplete = project.getServices().map(s => Object.assign({}, {name: s.serviceName, value: s.serviceName}));
+      filterItem.autocomplete = project.getServices().map(s => Object.assign({}, {
+        name: s.serviceName,
+        value: s.serviceName
+      }));
     }
     filterItem = this.filterFieldData.autocomplete.find(f => f.name === 'Stage');
     if (filterItem) {
@@ -235,7 +245,7 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
     this.updateFilterSequence(project.sequences);
     this.refreshFilterDataSource();
 
-    this.filtersChanged({ filters: [] });
+    this.filtersChanged({filters: []});
     this._changeDetectorRef.markForCheck();
   }
 
@@ -287,6 +297,30 @@ export class KtbSequenceViewComponent implements OnInit, OnDestroy {
       this.selectedStage = stageName;
       this._changeDetectorRef.markForCheck();
     }
+  }
+
+  triggerResumeSequence(sequence: Sequence): void {
+    this.dataService.sendSequenceControl(sequence, SequenceStateControl.RESUME);
+  }
+
+  triggerPauseSequence(sequence: Sequence): void {
+    this.dataService.sendSequenceControl(sequence, SequenceStateControl.PAUSE);
+  }
+
+  triggerAbortSequence(sequence: Sequence): void {
+    const data = {
+      sequence,
+      confirmCallback: (data: any) => {
+        this.abortSequence(data.sequence);
+      }
+    };
+    this.confirmationDialogRef = this.dialog.open(KtbConfirmationDialogComponent, {
+      data,
+    });
+  }
+
+  abortSequence(sequence: Sequence): void {
+    this.dataService.sendSequenceControl(sequence, SequenceStateControl.ABORT);
   }
 
   ngOnDestroy(): void {

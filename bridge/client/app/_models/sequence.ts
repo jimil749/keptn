@@ -1,9 +1,24 @@
-import {ResultTypes} from './result-types';
-import {Trace} from './trace';
-import {EventTypes} from './event-types';
-import {EvaluationResult} from './evaluation-result';
-import {EVENT_ICONS} from './event-icons';
+import { ResultTypes } from './result-types';
+import { Trace } from './trace';
+import { EvaluationResult } from './evaluation-result';
+import { EVENT_ICONS } from './event-icons';
+import { EventTypes } from './event-types';
 import { DtIconType } from '@dynatrace/barista-icons';
+
+export enum SequenceState {
+  TRIGGERED = 'triggered',
+  STARTED = 'started',
+  WAITING = 'waiting',
+  FINISHED = 'finished',
+  PAUSED = 'paused',
+  UNKNOWN = ''
+}
+
+export enum SequenceStateControl {
+  PAUSE = 'pause',
+  ABORT = 'abort',
+  RESUME = 'resume'
+}
 
 export class Sequence {
   name!: string;
@@ -27,7 +42,7 @@ export class Sequence {
       name: string
     }
   ];
-  state!: 'triggered' | 'finished' | 'waiting';
+  state!: SequenceState;
   time!: string;
   problemTitle?: string;
   traces: Trace[] = [];
@@ -37,14 +52,12 @@ export class Sequence {
   }
 
   public static getShortType(type: string): string {
-    const parts = type.split('.');
+    const parts = type?.split('.');
     if (parts.length === 6) {
       return parts[4];
-    }
-    else if (parts.length === 5) {
+    } else if (parts.length === 5) {
       return parts[3];
-    }
-    else {
+    } else {
       return type;
     }
   }
@@ -54,7 +67,7 @@ export class Sequence {
   }
 
   public getStages(): string[] {
-    return  this.stages.map(stage => stage.name);
+    return this.stages.map(stage => stage.name);
   }
 
   public getLastStage(): string | undefined {
@@ -68,7 +81,7 @@ export class Sequence {
   }
 
   public isFinished(stageName?: string): boolean {
-    return stageName ? (this.getStage(stageName)?.latestEvent?.type.endsWith('finished') ?? false) : this.state === 'finished';
+    return stageName ? (this.getStage(stageName)?.latestEvent?.type.endsWith('finished') ?? false) : this.state === SequenceState.FINISHED;
   }
 
   public getEvaluation(stage: string): EvaluationResult | undefined {
@@ -83,26 +96,22 @@ export class Sequence {
 
   public getStatus(): string {
     let status: string = this.state;
-    if (this.state === 'finished') {
+    if (this.state === SequenceState.FINISHED) {
       if (this.stages.some(stage => stage.latestFailedEvent)) {
         status = 'failed';
-      }
-      else {
+      } else {
         status = 'succeeded';
       }
-    }
-    else if (this.state === 'triggered') {
-      status = 'started';
     }
     return status;
   }
 
   public isLoading(stageName?: string): boolean {
-    return stageName ? this.state === 'triggered' && !this.isFinished(stageName) : this.state === 'triggered';
+    return stageName ? this.state === SequenceState.TRIGGERED && !this.isFinished(stageName) : this.state === SequenceState.TRIGGERED;
   }
 
   public isSuccessful(stageName?: string): boolean {
-    return stageName ? !this.isFaulty(stageName) && this.isFinished(stageName) : this.state === 'finished' && !this.isFaulty();
+    return stageName ? !this.isFaulty(stageName) && this.isFinished(stageName) : this.state === SequenceState.FINISHED && !this.isFaulty();
   }
 
   public isWarning(stageName: string): boolean {
@@ -110,11 +119,19 @@ export class Sequence {
   }
 
   public isWaiting(stageName?: string): boolean {
-    return stageName ? !this.isFinished(stageName) && this.state === 'waiting' : this.state === 'waiting';
+    return stageName ? !this.isFinished(stageName) && this.state === SequenceState.WAITING : this.state === SequenceState.WAITING;
   }
 
   public isRemediation(): boolean {
     return this.name === 'remediation';
+  }
+
+  public isPaused(): boolean {
+    return this.state === SequenceState.PAUSED;
+  }
+
+  public isUnkownState(): boolean {
+    return this.state === SequenceState.UNKNOWN;
   }
 
   public getLatestEvent(): {id: string, time: string, type: string} | undefined {
@@ -123,10 +140,9 @@ export class Sequence {
 
   public getIcon(stageName?: string): DtIconType {
     let icon;
-    if (this.state === 'waiting') {
+    if (this.state === SequenceState.WAITING) {
       icon = EVENT_ICONS.waiting;
-    }
-    else {
+    } else {
       const stage = stageName ? this.getStage(stageName) : this.stages[this.stages.length - 1];
       icon = stage?.latestEvent?.type ? EVENT_ICONS[Sequence.getShortType(stage?.latestEvent?.type)] || EVENT_ICONS.default : EVENT_ICONS.default;
     }
