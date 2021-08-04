@@ -111,6 +111,7 @@ import { KtbDangerZoneComponent } from './_components/ktb-danger-zone/ktb-danger
 import { KtbDeletionDialogComponent } from './_components/_dialogs/ktb-deletion-dialog/ktb-deletion-dialog.component';
 import { EventService } from './_services/event.service';
 import { ToType } from './_pipes/to-type';
+import { KtbConfirmationDialogComponent } from './_components/_dialogs/ktb-confirmation-dialog/ktb-confirmation-dialog.component';
 
 registerLocaleData(localeEn, 'en');
 
@@ -180,6 +181,7 @@ export function init_app(appLoadService: AppInitService) {
     KtbDragAndDropDirective,
     KtbDangerZoneComponent,
     KtbDeletionDialogComponent,
+    KtbConfirmationDialogComponent,
     ToType,
   ],
   imports: [
